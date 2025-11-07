@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OOPS Concepts — Single-page Quiz (Option Shuffle + Per-Q Check + Retry)</title>
+<style>
+  :root{--bg:#0f1724;--card:#0b1220;--muted:#93a3b8;--accent:#6ee7b7}
+  body{font-family:Inter,ui-sans-serif,system-ui,Arial,Helvetica,sans-serif;margin:0;background:linear-gradient(180deg,#071028 0%, #071428 100%);color:#e6eef6}
+  .wrap{max-width:980px;margin:32px auto;padding:20px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+  h1{font-size:20px;margin:0}
+  .controls{display:flex;gap:8px}
+  button{background:#0b1220;border:1px solid rgba(255,255,255,0.06);color:var(--accent);padding:8px 12px;border-radius:8px;cursor:pointer}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:16px;margin-top:18px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+  .q{padding:12px 0;border-bottom:1px dashed rgba(255,255,255,0.03)}
+  .q h3{margin:0 0 8px 0;font-size:15px}
+  .opts{display:flex;flex-direction:column;gap:8px}
+  label.opt{display:flex;gap:10px;align-items:flex-start;background:rgba(255,255,255,0.01);padding:10px;border-radius:8px;cursor:pointer}
+  label.opt.correct{border:1px solid rgba(110,231,183,0.6);background:rgba(110,231,183,0.03)}
+  label.opt.incorrect{border:1px solid rgba(255,110,110,0.35);background:rgba(255,110,110,0.03)}
+  .q-controls{margin-top:8px;display:flex;gap:8px;align-items:center}
+  .explanation{margin-top:8px;padding:10px;border-left:3px solid rgba(110,231,183,0.18);background:rgba(110,231,183,0.03);color:var(--muted);display:none}
+  .result{margin-top:12px;padding:10px;border-radius:8px;background:#07182b;color:var(--accent)}
+  footer{margin-top:18px;color:var(--muted);font-size:13px}
+  .small{font-size:13px;color:var(--muted)}
+  #retrySection{margin-top:22px}
+  .retry-title{font-weight:600;margin:12px 0 8px}
+  @media (max-width:600px){.wrap{padding:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>OOPS Concepts — Quiz (57 questions)</h1>
+      <div class="small">Single page — shuffle questions & options, reset, per-question check, retry wrong questions at the end.</div>
+    </div>
+    <div class="controls">
+      <button id="shuffleBtn">Shuffle Questions & Options</button>
+      <button id="resetBtn" class="ghost">Reset Quiz</button>
+      <button id="checkBtn">Check All Answers</button>
+    </div>
+  </header>
+
+  <section id="quiz" class="card">
+    <!-- main questions render here -->
+  </section>
+
+  <section id="retrySection" class="card" style="display:none">
+    <div class="retry-title">Retry: Questions you answered incorrectly</div>
+    <div id="retryList"></div>
+    <div style="margin-top:12px" class="small">When you answer a retry question correctly it will be removed from this list.</div>
+  </section>
+
+  <div id="score" class="result" style="display:none"></div>
+
+  <footer>
+    Questions source: IndiaBIX — OOPS Concepts (extracted). Explanations are provided inline. Answers matched by normalized text.
+  </footer>
+</div>
+
+<script>
+/* ---------- DATA (extracted) ---------- */
+/* For brevity this uses the extracted 57 Qs previously prepared. */
+const originalQuestions = [
+  { q: "Which of the following type of class allows only one object of it to be created?",
+    options:["Virtual class","Abstract class","Singleton class","Friend class"],
+    answer:2,
+    explanation:"Singleton pattern restricts a class to a single instance and provides a global point of access to it."},
+
+  { q: "Which of the following is not a type of constructor?",
+    options:["Copy constructor","Friend constructor","Default constructor","Parameterized constructor"],
+    answer:1,
+    explanation:"There is no friend constructor in C++; constructors can be default, parameterized, or copy (and move)."},
+
+  { q: "Which of the following statements is correct?",
+    options:["Base class pointer cannot point to derived class.","Derived class pointer cannot point to base class.","Pointer to derived class cannot be created.","Pointer to base class cannot be created."],
+    answer:1,
+    explanation:"A derived-class pointer cannot be assigned a base-class address safely without a cast. A base-class pointer can point to a derived object (polymorphism)."},
+
+  { q: "Which of the following is not the member of class?",
+    options:["Static function","Friend function","Const function","Virtual function"],
+    answer:1,
+    explanation:"Friend functions are not members of the class; they are external functions granted access to the class's private/protected members."},
+
+  { q: "Which of the following concepts means determining at runtime what method to invoke?",
+    options:["Data hiding","Dynamic Typing","Dynamic binding","Dynamic loading"],
+    answer:2,
+    explanation:"Dynamic binding (runtime binding) decides which function implementation to call at runtime (used in polymorphism with virtual functions)."},
+
+  { q: "Which of the following term is used for a function defined inside a class?",
+    options:["Member Variable","Member function","Class function","Classic function"],
+    answer:1,
+    explanation:"A function defined inside a class is called a member function (or method)."},
+
+  { q: "Which of the following concept of oops allows compiler to insert arguments in a function call if it is not specified?",
+    options:["Call by value","Call by reference","Default arguments","Call by pointer"],
+    answer:2,
+    explanation:"Default arguments let the caller omit trailing parameters — the compiler supplies the defaults."},
+
+  { q: "How many instances of an abstract class can be created?",
+    options:["1","5","13","0"],
+    answer:3,
+    explanation:"Abstract classes (containing at least one pure virtual function) cannot be instantiated directly, so zero objects can be created."},
+
+  { q: "Which of the following cannot be friend?",
+    options:["Function","Class","Object","Operator function"],
+    answer:2,
+    explanation:"You can declare functions, classes, and operator functions as friends of a class, but not a specific object instance."},
+
+  { q: "Which of the following concepts of OOPS means exposing only necessary information to client?",
+    options:["Encapsulation","Abstraction","Data hiding","Data binding"],
+    answer:1,
+    explanation:"Abstraction is about showing only essential features and hiding internal details; data hiding is a related mechanism."},
+
+  { q: "Why reference is not same as a pointer?",
+    options:["A reference can never be null.","A reference once established cannot be changed.","Reference doesn't need an explicit dereferencing mechanism.","All of the above."],
+    answer:3,
+    explanation:"References in C++ cannot be reseated, cannot be null (in well-formed code), and are accessed without explicit dereferencing syntax; all statements are true."},
+
+  { q: "cout is a/an __________ .",
+    options:["operator","function","object","macro"],
+    answer:2,
+    explanation:"`cout` is an object (an instance of ostream) provided by the standard library for output to stdout."},
+
+  { q: "Which of the following concepts provides facility of using object of one class inside another class?",
+    options:["Encapsulation","Abstraction","Composition","Inheritance"],
+    answer:2,
+    explanation:"Composition is the design principle of using objects of one class as members inside another class (has-a relationship)."},
+
+  { q: "How many types of polymorphisms are supported by C++?",
+    options:["1","2","3","4"],
+    answer:1,
+    explanation:"C++ supports two main kinds of polymorphism: compile-time (templates, overloading) and run-time (virtual functions)."},
+
+  { q: "Which of the following is an abstract data type?",
+    options:["int","double","string","Class"],
+    answer:3,
+    explanation:"A class encapsulates data and operations — it's an abstract data type (ADT)."},
+
+  { q: "Which of the following concepts means adding new components to a program as it runs?",
+    options:["Data hiding","Dynamic typing","Dynamic binding","Dynamic loading"],
+    answer:3,
+    explanation:"Dynamic loading refers to loading code (components) at runtime (e.g., shared libraries)."},
+
+  { q: "Which of the following statement is correct?",
+    options:["A constructor is called at the time of declaration of an object.","A constructor is called at the time of use of an object.","A constructor is called at the time of declaration of a class.","A constructor is called at the time of use of a class."],
+    answer:0,
+    explanation:"Constructors are invoked when an object is created (at declaration/instantiation)."},
+
+  { q: "Which of the following correctly describes overloading of functions?",
+    options:["Virtual polymorphism","Transient polymorphism","Ad-hoc polymorphism","Pseudo polymorphism"],
+    answer:2,
+    explanation:"Function overloading is a form of ad-hoc polymorphism (same name, different signatures)."},
+
+  { q: "Which of the following approach is adapted by C++?",
+    options:["Top-down","Bottom-up","Right-left","Left-right"],
+    answer:1,
+    explanation:"C++ historically promotes a bottom-up approach (building components and composing them)."},
+
+  { q: "Which of the following is correct about function overloading?",
+    options:["The types of arguments are different.","The order of argument is different.","The number of argument is same.","Both A and B."],
+    answer:3,
+    explanation:"Function overload resolution uses differences in argument types, order, or number; this item's intended correct choice is 'Both A and B' as valid ways to distinguish overloads."},
+
+  { q: "Which of the following is correct about class and structure?",
+    options:["class can have member functions while structure cannot.","class data members are public by default while that of structure are private.","Pointer to structure or classes cannot be declared.","class data members are private by default while that of structure are public by default."],
+    answer:3,
+    explanation:"In C++, class members are private by default while struct members are public by default."},
+
+  { q: "Which of the following concepts means wrapping up of data and functions together?",
+    options:["Abstraction","Encapsulation","Inheritance","Polymorphism"],
+    answer:1,
+    explanation:"Encapsulation groups data and methods that operate on that data into a single unit (class)."},
+
+  { q: "Which of the following concepts means waiting until runtime to determine which function to call?",
+    options:["Data hiding","Dynamic casting","Dynamic binding","Dynamic loading"],
+    answer:2,
+    explanation:"Dynamic binding (late binding) decides function implementation to call at runtime, used with virtual functions."},
+
+  { q: "How \"Late binding\" is implemented in C++?",
+    options:["Using C++ tables","Using Virtual tables","Using Indexed virtual tables","Using polymorphic tables"],
+    answer:1,
+    explanation:"C++ implements late binding for virtual functions using a table of function pointers called the vtable (virtual table)."},
+
+  { q: "Which of the following operator is overloaded for object cout?",
+    options:[">>","<<","+","="],
+    answer:1,
+    explanation:"The insertion operator '<<' is overloaded for output streams like cout."},
+
+  { q: "Which of the following is the correct class of the object cout?",
+    options:["iostream","istream","ostream","ifstream"],
+    answer:2,
+    explanation:"`cout` is an instance of `ostream` (output stream)."},
+
+  { q: "Which of the following cannot be used with the keyword virtual?",
+    options:["class","member functions","constructor","destructor"],
+    answer:2,
+    explanation:"Constructors cannot be virtual in C++; virtual dispatch is not meaningful during construction."},
+
+  { q: "Which of the following functions are performed by a constructor?",
+    options:["Construct a new class","Construct a new object","Construct a new function","Initialize objects"],
+    answer:3,
+    explanation:"Constructors are used to initialize object state when an object is created."},
+
+  { q: "Which of the following problem causes an exception?",
+    options:["Missing semicolon in statement in main().","A problem in calling function.","A syntax error.","A run-time error."],
+    answer:3,
+    explanation:"Exceptions are used to represent run-time errors or exceptional conditions; syntax errors are compile-time issues."},
+
+  { q: "Which one of the following options is correct about the statement given below? The compiler checks the type of reference in the object and not the type of object.",
+    options:["Inheritance","Polymorphism","Abstraction","Encapsulation"],
+    answer:1,
+    explanation:"This behavior is characteristic of polymorphism where static type vs dynamic type matters for dispatching."},
+
+  { q: "Which of the following is the correct way of declaring a function as constant?",
+    options:["const int ShowData(void) { /* statements */ }","int const ShowData(void) { /* statements */ }","int ShowData(void) const { /* statements */ }","Both A and B"],
+    answer:2,
+    explanation:"To declare a member function as const (it doesn't modify the object), use the trailing const: `int ShowData(void) const {}`. (Options A/B make the return type const, not the member function.)"},
+
+  { q: "Which of the following concepts is used to implement late binding?",
+    options:["Virtual function","Operator function","Const function","Static function"],
+    answer:0,
+    explanation:"Virtual functions enable late (runtime) binding to the appropriate derived-class implementation."},
+
+  { q: "Which of the following statement is correct?",
+    options:["C++ allows static type checking.","C++ allows dynamic type checking.","C++ allows static member function be of type const.","Both A and B."],
+    answer:3,
+    explanation:"C++ primarily uses static type checking but also provides runtime type information (RTTI) and dynamic_cast for some runtime checks, so both static and dynamic checks are possible."},
+
+  { q: "Which of the following factors supports the statement that reusability is a desirable feature of a language?",
+    options:["It decreases the testing time.","It lowers the maintenance cost.","It reduces the compilation time.","Both A and B."],
+    answer:3,
+    explanation:"Reusability reduces testing effort and maintenance costs since existing, tested components are reused."},
+
+  { q: "Which of the following ways are legal to access a class data member using this pointer?",
+    options:["this->x","this.x","*this.x","*this-x"],
+    answer:0,
+    explanation:"In C++ `this` is a pointer so the correct syntax is `this->x` to access member x."},
+
+  { q: "Which of the following is a mechanism of static polymorphism?",
+    options:["Operator overloading","Function overloading","Templates","All of the above"],
+    answer:3,
+    explanation:"Operator overloading, function overloading and templates are resolved at compile time — forms of static (compile-time) polymorphism."},
+
+  { q: "Which of the following is correct about the statements given below?\n1. All operators can be overloaded in C++.\n2. We can change the basic meaning of an operator in C++.",
+    options:["Only I is true.","Both I and II are false.","Only II is true.","Both I and II are true."],
+    answer:1,
+    explanation:"Not all operators can be overloaded (some like `?:` or `.` can't), and operator overloading doesn't change language-defined operator precedence or arity, so both statements are false."},
+
+  { q: "What happens if the base and derived class contains definition of a function with same prototype?",
+    options:["Compiler reports an error on compilation.","Only base class function will get called irrespective of object.","Only derived class function will get called irrespective of object.","Base class object will call base class function and derived class object will call derived class function."],
+    answer:3,
+    explanation:"If the derived class provides its own function with the same signature, the derived object's function is called for derived objects; base objects call base function. If functions are virtual, calls via base pointers can call the derived override."},
+
+  { q: "Which of the following are available only in the class hierarchy chain?",
+    options:["Public data members","Private data members","Protected data members","Member functions"],
+    answer:2,
+    explanation:"Protected members are specifically designed to be accessible within the class and its subclasses (class hierarchy)."},
+
+  { q: "Which of the following is not a type of inheritance?",
+    options:["Multiple","Multilevel","Distributive","Hierarchical"],
+    answer:2,
+    explanation:"'Distributive' is not a standard inheritance type in C++; common types include single, multiple, multilevel, hierarchical, and hybrid."},
+
+  { q: "Which of the following operators cannot be overloaded?",
+    options:["[]","->","?:","*"],
+    answer:2,
+    explanation:"The ternary conditional operator `?:` cannot be overloaded in C++."},
+
+  { q: "In which of the following a virtual call is resolved at the time of compilation?",
+    options:["From inside the destructor.","From inside the constructor.","From inside the main().","Both A and B."],
+    answer:3,
+    explanation:"During construction and destruction, virtual calls are resolved to the class's own (non-overridden) implementations — effectively not polymorphic at those times."},
+
+  { q: "Which of the following statements regarding inline functions is correct?",
+    options:["It speeds up execution.","It slows down execution.","It increases the code size.","Both A and C."],
+    answer:3,
+    explanation:"Inlining can remove function-call overhead (speed up) but may increase code size due to duplication of inlined code."},
+
+  { q: "Which one of the following is the correct way to declare a pure virtual function?",
+    options:["virtual void Display(void){0};","virtual void Display = 0;","virtual void Display(void) = 0;","void Display(void) = 0;"],
+    answer:2,
+    explanation:"A pure virtual function is declared with `= 0` after the signature: `virtual void Display() = 0;`."},
+
+  { q: "Which of the following header file includes definition of cin and cout?",
+    options:["istream.h","ostream.h","iomanip.h","iostream.h"],
+    answer:3,
+    explanation:"Historically `<iostream.h>` (or modern `<iostream>`) provides `cin` and `cout`. (Use `<iostream>` in modern C++.)"},
+
+  { q: "Which of the following keyword is used to overload an operator?",
+    options:["overload","operator","friend","override"],
+    answer:1,
+    explanation:"Operator overloading uses the `operator` keyword (for example `operator+`)."},
+
+  { q: "What will happen if a class is not having any name?",
+    options:["It cannot have a destructor.","It cannot have a constructor.","It is not allowed.","Both A and B."],
+    answer:2,
+    explanation:"An unnamed/anonymous class definition that is intended as a type is generally not allowed in the same way as a named class; the test expects 'It is not allowed.'"},
+
+
+  { q: "Which inheritance type is used in the class given below?\nclass A : public X, public Y\n{}",
+    options:["Multilevel inheritance","Multiple inheritance","Hybrid inheritance","Hierarchical Inheritance"],
+    answer:1,
+    explanation:"`class A : public X, public Y` demonstrates multiple inheritance (A inherits from X and Y)."},
+
+  { q: "Which one of the following is correct about the statements given below?\n1. All function calls are resolved at compile-time in Procedure Oriented Programming.\n2. All function calls are resolved at compile-time in OOPS.",
+    options:["Only II is correct.","Both I and II are correct.","Only I is correct.","Both I and II are incorrect."],
+    answer:2,
+    explanation:"In procedural programming, calls are generally resolved at compile time. In OOP, due to polymorphism and virtual functions, some calls may be resolved at runtime, so only statement I is correct — the expected answer in the original set is 'Only I is correct'."},
+
+  { q: "Which of the following is an invalid visibility label while inheriting a class?",
+    options:["public","private","protected","friend"],
+    answer:3,
+    explanation:"Friend is not a visibility specifier for inheritance (public/private/protected are valid)."},
+
+  { q: "Which one of the following options is correct?",
+    options:["Friend function can access public data members of the class.","Friend function can access protected data members of the class.","Friend function can access private data members of the class.","All of the above."],
+    answer:3,
+    explanation:"Friend functions have access to class's public, protected and private members."},
+
+  { q: "Which of the following statements is correct in C++?",
+    options:["Classes cannot have data as protected members.","Structures can have functions as members.","Class members are public by default.","Structure members are private by default."],
+    answer:1,
+    explanation:"In C++, structs can have member functions and access specifiers like classes; this is true."},
+
+  { q: "Which of the following is used to make an abstract class?",
+    options:["Declaring it abstract using static keyword.","Declaring it abstract using virtual keyword.","Making at least one member function as virtual function.","Making at least one member function as pure virtual function."],
+    answer:3,
+    explanation:"An abstract class is made by declaring at least one pure virtual function (e.g. `virtual void f() = 0;`)."},
+
+  { q: "Which of the following access specifier is used as a default in a class definition?",
+    options:["protected","public","private","friend"],
+    answer:2,
+    explanation:"In `class` the default access specifier is `private` (in `struct` it's `public`)."},
+
+  { q: "What is correct about the static data member of a class?",
+    options:["A static member function can access only static data members of a class.","A static data member is shared among all the object of the class.","A static data member can be accessed directly from main().","Both A and B."],
+    answer:3,
+    explanation:"Static data members are shared by all objects of the class; static member functions can only access static data members directly."},
+
+  { q: "Which of the following provides a reuse mechanism?",
+    options:["Abstraction","Inheritance","Dynamic binding","Encapsulation"],
+    answer:1,
+    explanation:"Inheritance is the primary mechanism for reuse of code and interfaces in OOP."},
+
+  { q: "Which of the following statement is correct?",
+    options:["Class is an instance of object.","Object is an instance of a class.","Class is an instance of data type.","Object is an instance of data type."],
+    answer:1,
+    explanation:"Objects are instances of classes (the class is the blueprint)."}
+];
+
+/* ---------- UTILS & STATE ---------- */
+function norm(s){ return String(s||'').trim().replace(/\s+/g,' '); }
+const preservedOriginal = JSON.parse(JSON.stringify(originalQuestions));
+preservedOriginal.forEach(q => {
+  q.answerText = q.options[q.answer];
+  q.answerTextNorm = norm(q.answerText);
+  q.originalOptions = [...q.options];
+});
+let questions = JSON.parse(JSON.stringify(preservedOriginal)); // runtime copy
+const wrongSet = new Set(); // store original question indices (from preservedOriginal) that are currently wrong
+const quizEl = document.getElementById('quiz');
+const retrySection = document.getElementById('retrySection');
+const retryList = document.getElementById('retryList');
+const scoreEl = document.getElementById('score');
+
+/* ---------- RENDER MAIN QUESTIONS ---------- */
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function render(){
+  quizEl.innerHTML = '';
+  questions.forEach((item, idx) => {
+    // store a stable reference to the original index (we will use answerTextNorm on preservedOriginal)
+    // To keep mapping consistent after shuffles we store item.__origIndex if present
+    const origIndex = (typeof item.__origIndex === 'number') ? item.__origIndex : findOriginalIndex(item);
+    item.__origIndex = origIndex;
+
+    const qDiv = document.createElement('div');
+    qDiv.className = 'q';
+    qDiv.dataset.index = idx;
+    qDiv.innerHTML = `
+      <h3>Q${idx+1}. ${escapeHtml(item.q)}</h3>
+      <div class="opts" id="opts-${idx}"></div>
+      <div class="q-controls">
+        <button data-idx="${idx}" class="check-this">Check This Question</button>
+        <button data-idx="${idx}" class="show-answer ghost">Show Answer</button>
+        <span class="small" style="margin-left:12px;color:var(--muted)">Orig #${origIndex+1}</span>
+      </div>
+      <div class="explanation" id="exp-${idx}">${escapeHtml(item.explanation)}</div>
+    `;
+    quizEl.appendChild(qDiv);
+
+    const optsEl = qDiv.querySelector(`#opts-${idx}`);
+    item.options.forEach((opt, oi) => {
+      const id = `q${idx}_opt${oi}`;
+      const label = document.createElement('label');
+      label.className = 'opt';
+      label.dataset.opttext = opt;
+      label.innerHTML = `<input type="radio" name="q${idx}" id="${id}" value="${escapeHtml(opt)}" /> <div><strong>${String.fromCharCode(65+oi)}.</strong> ${escapeHtml(opt)}</div>`;
+      optsEl.appendChild(label);
+    });
+  });
+
+  // attach per-question listeners
+  document.querySelectorAll('.check-this').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = Number(btn.dataset.idx);
+      checkQuestion(idx, {revealExplanation:true, addToRetry:true});
+    });
+  });
+  document.querySelectorAll('.show-answer').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = Number(btn.dataset.idx);
+      showAnswer(idx);
+    });
+  });
+}
+
+/* find original index by matching question text and options (robust enough here) */
+function findOriginalIndex(item){
+  for(let i=0;i<preservedOriginal.length;i++){
+    if(norm(preservedOriginal[i].q) === norm(item.q)) return i;
+  }
+  return -1;
+}
+
+/* ---------- CHECK SINGLE QUESTION ---------- */
+function checkQuestion(idx, opts = { revealExplanation:true, addToRetry:true }){
+  const q = questions[idx];
+  const origIdx = q.__origIndex;
+  const selectedInput = document.querySelector(`input[name=q${idx}]:checked`);
+  const expEl = document.getElementById(`exp-${idx}`);
+  // clear previous highlights
+  const labels = Array.from(document.querySelectorAll(`#opts-${idx} label.opt`));
+  labels.forEach(l => l.classList.remove('correct','incorrect'));
+
+  let isCorrect = false;
+  if(selectedInput){
+    const val = norm(selectedInput.value);
+    if(val === preservedOriginal[origIdx].answerTextNorm) isCorrect = true;
+  } else {
+    isCorrect = false; // no selection => treated incorrect for retry purposes
+  }
+
+  if(isCorrect){
+    // highlight selected label as correct
+    const selLabel = labels.find(l => norm(l.dataset.opttext) === norm(selectedInput.value));
+    if(selLabel) selLabel.classList.add('correct');
+    // remove from wrongSet if present
+    if(wrongSet.has(origIdx)){
+      wrongSet.delete(origIdx);
+      renderRetry();
+    }
+  } else {
+    // mark selected (if any) incorrect and mark correct answer
+    if(selectedInput){
+      const selLabel = labels.find(l => norm(l.dataset.opttext) === norm(selectedInput.value));
+      if(selLabel) selLabel.classList.add('incorrect');
+    }
+    // highlight the correct option too for clarity
+    const corrLabel = labels.find(l => norm(l.dataset.opttext) === preservedOriginal[origIdx].answerTextNorm);
+    if(corrLabel) corrLabel.classList.add('correct');
+    // add to wrong set
+    if(opts.addToRetry) {
+      wrongSet.add(origIdx);
+      renderRetry();
+    }
+  }
+
+  if(opts.revealExplanation) expEl.style.display = 'block';
+}
+
+/* ---------- SHOW ANSWER (reveal correct option and explanation) ---------- */
+function showAnswer(idx){
+  const q = questions[idx];
+  const origIdx = q.__origIndex;
+  const expEl = document.getElementById(`exp-${idx}`);
+  const labels = Array.from(document.querySelectorAll(`#opts-${idx} label.opt`));
+  labels.forEach(l => l.classList.remove('correct','incorrect'));
+  const corrLabel = labels.find(l => norm(l.dataset.opttext) === preservedOriginal[origIdx].answerTextNorm);
+  if(corrLabel) corrLabel.classList.add('correct');
+  expEl.style.display = 'block';
+  // mark as wrong for retry if user hasn't selected the correct option
+  const selectedInput = document.querySelector(`input[name=q${idx}]:checked`);
+  const val = selectedInput ? norm(selectedInput.value) : null;
+  if(val !== preservedOriginal[origIdx].answerTextNorm) {
+    wrongSet.add(origIdx);
+    renderRetry();
+  }
+}
+
+/* ---------- GLOBAL CHECK ALL ---------- */
+function checkAll(){
+  let correct = 0;
+  questions.forEach((q, idx) => {
+    const origIdx = q.__origIndex;
+    const selectedInput = document.querySelector(`input[name=q${idx}]:checked`);
+    const expEl = document.getElementById(`exp-${idx}`);
+    // clear existing
+    const labels = Array.from(document.querySelectorAll(`#opts-${idx} label.opt`));
+    labels.forEach(l => l.classList.remove('correct','incorrect'));
+    let isCorrect = false;
+    if(selectedInput){
+      const val = norm(selectedInput.value);
+      if(val === preservedOriginal[origIdx].answerTextNorm) isCorrect = true;
+    }
+    if(isCorrect){
+      correct++;
+      const selLabel = labels.find(l => norm(l.dataset.opttext) === norm(selectedInput.value));
+      if(selLabel) selLabel.classList.add('correct');
+      if(wrongSet.has(origIdx)){ wrongSet.delete(origIdx); }
+    } else {
+      if(selectedInput){
+        const selLabel = labels.find(l => norm(l.dataset.opttext) === norm(selectedInput.value));
+        if(selLabel) selLabel.classList.add('incorrect');
+      }
+      const corrLabel = labels.find(l => norm(l.dataset.opttext) === preservedOriginal[origIdx].answerTextNorm);
+      if(corrLabel) corrLabel.classList.add('correct');
+      wrongSet.add(origIdx);
+    }
+    expEl.style.display = 'block';
+  });
+
+  renderRetry();
+  scoreEl.style.display = 'block';
+  scoreEl.textContent = `Score: ${correct} / ${questions.length}`;
+  scoreEl.scrollIntoView({behavior:'smooth'});
+}
+
+/* ---------- SHUFFLE QUESTIONS + OPTIONS ---------- */
+function shuffleArray(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+}
+function shuffleQuestionsAndOptions(){
+  // shuffle questions array
+  shuffleArray(questions);
+  // assign __origIndex if missing
+  questions.forEach(q => {
+    if(typeof q.__origIndex !== 'number') q.__origIndex = findOriginalIndex(q);
+  });
+  // shuffle each question's options
+  questions.forEach(q => { shuffleArray(q.options); });
+  // after shuffle, re-render
+  render();
+  // hide score + retry until user interacts
+  scoreEl.style.display = 'none';
+  wrongSet.clear();
+  renderRetry();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---------- RESET QUIZ ---------- */
+function resetQuiz(){
+  questions = JSON.parse(JSON.stringify(preservedOriginal));
+  questions.forEach((q,i) => q.__origIndex = i);
+  wrongSet.clear();
+  render();
+  renderRetry();
+  scoreEl.style.display = 'none';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ---------- RETRY SECTION ---------- */
+/* Render retry questions at end using their original content (but allow re-attempt with shuffled options there too) */
+function renderRetry(){
+  retryList.innerHTML = '';
+  if(wrongSet.size === 0){
+    retrySection.style.display = 'none';
+    return;
+  }
+  retrySection.style.display = 'block';
+  // build a list of question objects from preservedOriginal for stable mapping
+  Array.from(wrongSet).forEach(origIdx => {
+    const baseQ = preservedOriginal[origIdx];
+    // create a local working copy to allow per-retry shuffling without mutating preservedOriginal
+    const localQ = {
+      __origIndex: origIdx,
+      q: baseQ.q,
+      options: [...baseQ.options].map(o => o),
+      explanation: baseQ.explanation,
+      answerTextNorm: baseQ.answerTextNorm
+    };
+    // shuffle options for retry for variety
+    shuffleArray(localQ.options);
+    // render
+    const rIdx = `retry_${origIdx}`;
+    const div = document.createElement('div');
+    div.className = 'q';
+    div.dataset.orig = origIdx;
+    div.innerHTML = `
+      <h3>Retry — ${escapeHtml(localQ.q)}</h3>
+      <div class="opts" id="opts-${rIdx}"></div>
+      <div class="q-controls">
+        <button data-ridx="${rIdx}" class="check-retry">Check Retry</button>
+        <button data-ridx="${rIdx}" class="show-answer-retry ghost">Show Answer</button>
+      </div>
+      <div class="explanation" id="exp-${rIdx}" style="display:none">${escapeHtml(localQ.explanation)}</div>
+    `;
+    retryList.appendChild(div);
+    const optsEl = div.querySelector(`#opts-${rIdx}`);
+    localQ.options.forEach((opt, oi) => {
+      const id = `${rIdx}_opt${oi}`;
+      const label = document.createElement('label');
+      label.className = 'opt';
+      label.dataset.opttext = opt;
+      label.innerHTML = `<input type="radio" name="${rIdx}" id="${id}" value="${escapeHtml(opt)}" /> <div><strong>${String.fromCharCode(65+oi)}.</strong> ${escapeHtml(opt)}</div>`;
+      optsEl.appendChild(label);
+    });
+
+    // attach handlers for this retry question
+    div.querySelector('.check-retry').addEventListener('click', () => {
+      // check retry attempt; if correct remove from wrongSet and remove retry card
+      const selected = div.querySelector(`input[name=${rIdx}]:checked`);
+      const labels = Array.from(div.querySelectorAll('label.opt'));
+      labels.forEach(l => l.classList.remove('correct','incorrect'));
+      const expEl = document.getElementById(`exp-${rIdx}`);
+      if(selected){
+        const val = norm(selected.value);
+        if(val === localQ.answerTextNorm){
+          // correct -> remove from wrongSet
+          labels.find(l => norm(l.dataset.opttext) === val)?.classList.add('correct');
+          wrongSet.delete(origIdx);
+          // remove this retry card from DOM visually
+          div.style.display = 'none';
+          renderRetry();
+        } else {
+          // incorrect -> mark selected incorrect and show correct
+          labels.find(l => norm(l.dataset.opttext) === norm(selected.value))?.classList.add('incorrect');
+          labels.find(l => norm(l.dataset.opttext) === localQ.answerTextNorm)?.classList.add('correct');
+          // keep in wrongSet (already there)
+        }
+      } else {
+        // no selection -> just show correct
+        labels.find(l => norm(l.dataset.opttext) === localQ.answerTextNorm)?.classList.add('correct');
+      }
+      expEl.style.display = 'block';
+    });
+
+    div.querySelector('.show-answer-retry').addEventListener('click', () => {
+      const labels = Array.from(div.querySelectorAll('label.opt'));
+      labels.forEach(l => l.classList.remove('correct','incorrect'));
+      labels.find(l => norm(l.dataset.opttext) === localQ.answerTextNorm)?.classList.add('correct');
+      document.getElementById(`exp-${rIdx}`).style.display = 'block';
+    });
+  });
+}
+
+/* ---------- BOOTSTRAP ---------- */
+function attachGlobalButtons(){
+  document.getElementById('shuffleBtn').addEventListener('click', shuffleQuestionsAndOptions);
+  document.getElementById('resetBtn').addEventListener('click', resetQuiz);
+  document.getElementById('checkBtn').addEventListener('click', checkAll);
+}
+
+/* ---------- INITIALIZE ---------- */
+questions.forEach((q,i) => q.__origIndex = i);
+render();
+attachGlobalButtons();
+renderRetry(); // empty initially
+</script>
+</body>
+</html>
